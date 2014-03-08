@@ -4,6 +4,8 @@
 //  We do not use the inbuilt BaseClasses routines as we need to register as
 //  a capture source
 //////////////////////////////////////////////////////////////////////////
+
+#if _MSC_VER
 #pragma comment(lib, "kernel32")
 #pragma comment(lib, "user32")
 #pragma comment(lib, "gdi32")
@@ -16,6 +18,7 @@
     #pragma comment(lib, "strmbasd")
 #else
     #pragma comment(lib, "strmbase")
+#endif
 #endif
 
 
