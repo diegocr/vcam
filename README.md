@@ -1,0 +1,1 @@
+This is a DirectShow Video Capture Source Filter, taken from [The March Hare](http://tmhare.mvps.org/downloads.htm) website and shipped suitable to compile under MinGW (Ie, includes code borrowed from the _DirectX 9 SDK_)
