@@ -11,10 +11,8 @@
 #ifndef __WXUTIL__
 #define __WXUTIL__
 
-#ifdef	_MSC_VER
 // eliminate spurious "statement has no effect" warnings.
 #pragma warning(disable: 4705)
-#endif
 
 // wrapper for whatever critical section we have
 class CCritSec {
@@ -380,9 +378,23 @@ void * __stdcall memmoveInternal(void *, const void *, size_t);
 
 inline void * __cdecl memchrInternal(const void *buf, int chr, size_t cnt)
 {
-#if defined(_X86_) && defined(_MSC_VER)
+#ifdef _X86_
     void *pRet = NULL;
 
+#ifdef __GNUC__
+    void *d0, *d1;
+    asm volatile ("cld\n\t"
+         "repne\n\t"
+         "scasb\n\t"
+         "jnz 1f\n\t"
+         "dec %%edi\n\t"
+         "movl %%edi, %2\n"
+// exit_memchr
+"1:"
+         : "=&c" (d0), "=&D" (d1), "=m" (pRet)
+         : "0" (cnt), "a" (chr), "1" (buf)
+         : "cc");
+#else
     _asm {
         cld                 // make sure we get the direction right
         mov     ecx, cnt    // num of bytes to scan
@@ -395,6 +407,7 @@ inline void * __cdecl memchrInternal(const void *buf, int chr, size_t cnt)
         mov     pRet, edi
 exit_memchr:
     }
+#endif
     return pRet;
 
 #else

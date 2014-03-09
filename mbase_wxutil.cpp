@@ -18,10 +18,6 @@
 // Enlarged integer divide - 64-bits / 32-bits > 32-bits
 //
 
-#ifdef __GNUC__
-# undef _X86_
-#endif
-
 #ifndef _X86_
 
 #define LLtoU64(x) (*(unsigned __int64*)(void*)(&(x)))
@@ -52,6 +48,17 @@ EnlargedUnsignedDivide (
     )
 {
     ULONG ulResult;
+#ifdef __GNUC__
+    asm volatile (
+        "divl %4\n\t"
+        "jecxz 1f\n\t"
+        "movl %%edx, (%%ecx)\n"
+// label
+"1:"
+        : "=&a" (ulResult)
+        : "0" (Dividend.LowPart), "d" (Dividend.HighPart), "c" (Remainder), "m" (Divisor)
+        : "memory");
+#else
     _asm {
         mov eax,Dividend.LowPart
         mov edx,Dividend.HighPart
@@ -63,6 +70,7 @@ EnlargedUnsignedDivide (
 label:
         mov ulResult,eax
     }
+#endif
     return ulResult;
 }
 #endif
@@ -601,6 +609,25 @@ void * __stdcall memmoveInternal(void * dst, const void * src, size_t count)
          * Non-Overlapping Buffers
          * copy from lower addresses to higher addresses
          */
+#ifdef __GNUC__
+        void *d0, *d1, *d2;
+        asm volatile (
+            "cld\n\t"
+            "movl %%ecx, %%edx\n\t"
+            // MEMORY_ALIGNMENT_MASK = 3
+            "andl $3, %%edx\n\t"
+            // MEMORY_ALIGNMENT_LOG2 = 2
+            "shrl $2, %%ecx\n\t"
+            "rep movsd\n\t"
+            "orl %%edx, %%ecx\n\t"
+            "jz 1f\n\t"
+            "rep movsb\n"
+// memmove_done
+"1:"
+            : "=&S" (d0), "=&D" (d1), "=&c" (d2)
+            : "0" (src), "1" (dst), "2" (count)
+            : "%edx", "cc", "memory");         
+#else
         _asm {
             mov     esi,src
             mov     edi,dst
@@ -615,6 +642,7 @@ void * __stdcall memmoveInternal(void * dst, const void * src, size_t count)
             rep     movsb
 memmove_done:
         }
+#endif
     }
     else {
 
@@ -622,6 +650,19 @@ memmove_done:
          * Overlapping Buffers
          * copy from higher addresses to lower addresses
          */
+#ifdef __GNUC__
+        void *d0;
+        asm volatile (
+            "std\n\t"
+            "addl %%ecx, %%esi\n\t"
+            "addl %%ecx, %%edi\n\t"
+            "decl %%esi\n\t"
+            "decl %%edi\n\t"
+            "rep movsb\n\t"
+            : "=&c" (d0)
+            : "S" (src), "D" (dst), "0" (count)
+            : "cc", "memory");
+#else
         _asm {
             mov     esi,src
             mov     edi,dst
@@ -634,6 +675,7 @@ memmove_done:
             rep     movsb
             cld
         }
+#endif
     }
 #else
     MoveMemory(dst, src, count);
@@ -746,13 +788,8 @@ LONGLONG WINAPI llMulDiv(LONGLONG a, LONGLONG b, LONGLONG c, LONGLONG d)
 
     /*  This will catch c == 0 and overflow */
     if (uc <= p[1].QuadPart) {
-#if !defined(__GNUC__)
-        return bSign ? (LONGLONG)0x8000000000000000 :
-                       (LONGLONG)0x7FFFFFFFFFFFFFFF;
-#else
         return bSign ? (LONGLONG)0x8000000000000000LL :
                        (LONGLONG)0x7FFFFFFFFFFFFFFFLL;
-#endif
     }
 
     DWORDLONG ullResult;
@@ -912,13 +949,8 @@ LONGLONG WINAPI Int64x32Div32(LONGLONG a, LONG b, LONG c, LONG d)
 
     /*  This will catch c == 0 and overflow */
     if (uc <= p1) {
-#if !defined(__GNUC__)
-        return bSign ? (LONGLONG)0x8000000000000000 :
-                       (LONGLONG)0x7FFFFFFFFFFFFFFF;
-#else
         return bSign ? (LONGLONG)0x8000000000000000LL :
                        (LONGLONG)0x7FFFFFFFFFFFFFFFLL;
-#endif
     }
 
     /*  Do the division */
